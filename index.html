@@ -19,14 +19,21 @@ html,body{height:100%; overflow:hidden}
 body{margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"SF Pro",Inter,Roboto,Arial,sans-serif}
 button{appearance:none; -webkit-appearance:none}
 
-/* Layout: settings 1fr + bottone auto + results full quando on */
+/* Layout: settings 1fr + bottone auto */
 .app{height:100dvh; display:grid; grid-template-rows:1fr auto}
 
-/* SETTINGS */
-.settings{padding:8px 14px 10px; background:var(--panel); border-bottom:1px solid var(--line); overflow:hidden}
-.settingsInner{transform-origin:top center}
+/* SETTINGS: ora SCORRE verticalmente */
+.settings{
+  padding:8px 14px 10px;
+  background:var(--panel);
+  border-bottom:1px solid var(--line);
+  overflow:auto;                         /* <— scroll */
+  -webkit-overflow-scrolling:touch;      /* <— scroll fluido su iOS */
+}
+.settingsInner{ /* niente scale, solo contenitore */
+  max-width:720px; margin:0 auto;
+}
 
-/* Home link + Brand */
 .brand{padding-top:calc(env(safe-area-inset-top,0px)+8px); margin:0 0 12px}
 .homeLink{
   display:inline-flex; align-items:center; gap:6px;
@@ -54,8 +61,6 @@ button{appearance:none; -webkit-appearance:none}
 }
 .chip.small{font-size:13px; padding:8px 10px}
 .chip.selected{background:var(--accent); border-color:transparent; color:#fff; box-shadow:0 6px 18px rgba(59,130,246,.25)}
-.settings.compact .chip{padding:8px 10px; font-size:14px}
-.settings.compact .chip.small{padding:7px 9px; font-size:12px}
 
 .inputGrid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
 .input{display:flex; flex-direction:column; gap:6px}
@@ -68,17 +73,17 @@ button{appearance:none; -webkit-appearance:none}
 
 .tip{font-size:12px; color:#93a6c2}
 
-/* START / CALCOLA */
+/* CALCOLA */
 .startBar{padding:2px 12px calc(6px + env(safe-area-inset-bottom)); background:linear-gradient(180deg,rgba(10,16,24,0),rgba(10,16,24,.55)); display:flex; justify-content:center; align-items:center}
 .btn{width:100%; max-width:520px; height:54px; border:none; border-radius:16px; font-size:20px; font-weight:900; color:#fff; background:var(--accent); box-shadow:0 8px 18px rgba(59,130,246,.18); cursor:pointer}
 
-/* RESULTS */
+/* RESULTS (già scrollabili) */
 .results{display:none; position:relative; background:#000}
 .results.on{display:block}
 .wrap{position:absolute; inset:0; display:grid; grid-template-rows:auto 1fr auto}
 .resTop{padding:calc(10px + env(safe-area-inset-top)) 14px 8px; display:flex; justify-content:space-between; align-items:center}
 .resTitle{margin:0; font-weight:1000; letter-spacing:.02em; font-size:clamp(18px,5.2vw,24px)}
-.resBody{padding:8px 14px 14px; overflow:auto}
+.resBody{padding:8px 14px 14px; overflow:auto; -webkit-overflow-scrolling:touch}
 .card{
   background:#0f1622; border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:10px;
 }
@@ -171,12 +176,9 @@ button{appearance:none; -webkit-appearance:none}
         </div>
       </div>
 
-      <!-- Intensità variabile in base all'obiettivo -->
       <div class="row" id="intensityRow">
         <div class="label" id="intensityLabel">Deficit</div>
-        <div class="chips" id="intensityChips">
-          <!-- Per cut: 10/15/20% ; per bulk: 5/10/15% -->
-        </div>
+        <div class="chips" id="intensityChips"></div>
       </div>
 
       <div class="heading">Macro</div>
@@ -282,21 +284,17 @@ button{appearance:none; -webkit-appearance:none}
     results: $('results'), resBody: $('resBody'),
     calcBtn: $('calcBtn'), backBtn: $('backBtn'), copyBtn: $('copyBtn'),
     err: $('err'),
-    // outputs
     bmrVal: $('bmrVal'), tdeeVal: $('tdeeVal'), targetVal: $('targetVal'), targetLab: $('targetLab'),
     pVal: $('pVal'), fVal: $('fVal'), cVal: $('cVal'),
-    // inputs
     age: $('age'), height: $('height'), weight: $('weight'), bf: $('bf')
   };
 
-  // Stato UI
   let state = {
     sex:'m', activity:1.2, train:0, goal:'cut',
-    intensity:0.15, // default per cut (15%)
+    intensity:0.15, // default cut 15%
     prot:2.0, fat:0.8
   };
 
-  // Chips binding
   function bindChips(){
     qsa('.chip').forEach(ch=>{
       ch.addEventListener('click', ()=>{
@@ -311,32 +309,27 @@ button{appearance:none; -webkit-appearance:none}
         if(group==='intensity') state.intensity = parseFloat(val);
         if(group==='prot') state.prot = parseFloat(val);
         if(group==='fat') state.fat = parseFloat(val);
-        fitSettings();
       }, {passive:true});
     });
   }
 
-  // Intensità dinamica
   function buildIntensityChips(){
     const wrap = document.getElementById('intensityChips');
     const label = document.getElementById('intensityLabel');
     wrap.innerHTML='';
     if(state.goal==='cut'){
       label.textContent='Deficit';
-      const opts = [{p:0.10,l:'10%'},{p:0.15,l:'15%'},{p:0.20,l:'20%'}];
-      opts.forEach((o,i)=>{
-        const b = document.createElement('button');
+      [{p:0.10,l:'10%'},{p:0.15,l:'15%'},{p:0.20,l:'20%'}].forEach(o=>{
+        const b=document.createElement('button');
         b.className='chip'+(o.p===state.intensity?' selected':'');
         b.dataset.group='intensity'; b.dataset.value=o.p; b.textContent=o.l;
         wrap.appendChild(b);
       });
-      // default se venivo da bulk
       if(![0.10,0.15,0.20].includes(state.intensity)) state.intensity=0.15;
     }else if(state.goal==='bulk'){
       label.textContent='Surplus';
-      const opts = [{p:0.05,l:'+5%'},{p:0.10,l:'+10%'},{p:0.15,l:'+15%'}];
-      opts.forEach((o,i)=>{
-        const b = document.createElement('button');
+      [{p:0.05,l:'+5%'},{p:0.10,l:'+10%'},{p:0.15,l:'+15%'}].forEach(o=>{
+        const b=document.createElement('button');
         b.className='chip'+(o.p===state.intensity?' selected':'');
         b.dataset.group='intensity'; b.dataset.value=o.p; b.textContent=o.l;
         wrap.appendChild(b);
@@ -344,47 +337,25 @@ button{appearance:none; -webkit-appearance:none}
       if(![0.05,0.10,0.15].includes(state.intensity)) state.intensity=0.10;
     }else{
       label.textContent='Intensità';
-      const b = document.createElement('div');
-      b.className='tip'; b.textContent='A mantenimento non si applica surplus/deficit.';
-      wrap.appendChild(b);
-      state.intensity = 0;
+      const info=document.createElement('div');
+      info.className='tip'; info.textContent='A mantenimento non si applica surplus/deficit.';
+      wrap.appendChild(info);
+      state.intensity=0;
     }
-    bindChips(); // rebind ai nuovi chip
+    bindChips();
   }
 
-  // Fit: adatta i settings senza scroll
-  function fitSettings(){
-    const wrap = els.settings, inner = els.settingsInner;
-    inner.style.transform='scale(1)'; wrap.classList.remove('compact');
-    const avail = wrap.clientHeight;
-    const needed = inner.scrollHeight;
-    let scale = Math.min(1, avail/needed);
-    scale = Math.max(0.6, scale);
-    inner.style.transform = `scale(${scale})`;
-    if(scale<0.82) wrap.classList.add('compact');
-    const used = needed*scale;
-    inner.style.marginTop = `${Math.max(0,(avail-used)*0.15)}px`;
-  }
-
-  // Helpers
   const round = (x, d=0) => Number((Math.round(x * Math.pow(10,d)) / Math.pow(10,d)).toFixed(d));
   const fmt = n => n.toLocaleString('it-IT');
+  function trainingBoost(idx){ return [0,0.05,0.10,0.15,0.20][idx] || 0; }
 
-  // Training boost in base a frequenza (0..4)
-  function trainingBoost(idx){
-    // 0=0%, 1=+5%, 2=+10%, 3=+15%, 4=+20%
-    return [0, 0.05, 0.10, 0.15, 0.20][idx] || 0;
-  }
-
-  // Calcolo BMR
   function calcBMR({sex, age, height, weight, bf}){
     const hasBf = bf && !isNaN(bf);
     if(hasBf){
       const LBM = weight * (1 - (bf/100));
       return 370 + 21.6 * LBM; // Katch-McArdle
     }else{
-      // Mifflin-St Jeor
-      const s = (sex==='m') ? 5 : -161;
+      const s = (sex==='m') ? 5 : -161; // Mifflin-St Jeor
       return 10*weight + 6.25*height - 5*age + s;
     }
   }
@@ -394,71 +365,50 @@ button{appearance:none; -webkit-appearance:none}
     const height = parseFloat(els.height.value);
     const weight = parseFloat(els.weight.value);
     const bf = els.bf.value ? parseFloat(els.bf.value) : null;
-
-    let msg = [];
+    let msg=[];
     if(isNaN(age) || age<10 || age>99) msg.push('Età non valida (10–99).');
     if(isNaN(height) || height<120 || height>230) msg.push('Altezza non valida (120–230 cm).');
     if(isNaN(weight) || weight<30 || weight>250) msg.push('Peso non valido (30–250 kg).');
     if(bf!==null && (bf<3 || bf>60)) msg.push('% grasso fuori range (3–60%).');
-
-    if(msg.length){
-      els.err.style.display='block';
-      els.err.innerHTML = msg.join('<br>');
-      return null;
-    }
+    if(msg.length){ els.err.style.display='block'; els.err.innerHTML=msg.join('<br>'); return null; }
     els.err.style.display='none';
-    return { age, height, weight, bf };
+    return {age,height,weight,bf};
   }
 
   function calculate(){
-    const v = validate();
-    if(!v) return;
+    const v = validate(); if(!v) return;
 
-    // BMR
     const BMR = calcBMR({sex:state.sex, ...v});
-    // PAL di base (attività quotidiana)
     const PAL = state.activity;
-    // Boost per allenamenti
     const boost = trainingBoost(state.train);
-    // TDEE
     const TDEE = BMR * PAL * (1 + boost);
 
-    // Target calories
-    let target = TDEE;
-    let lab = 'Calorie target';
-    if(state.goal==='cut'){ target = TDEE * (1 - state.intensity); lab = `Target (deficit ${Math.round(state.intensity*100)}%)`; }
-    if(state.goal==='bulk'){ target = TDEE * (1 + state.intensity); lab = `Target (surplus ${Math.round(state.intensity*100)}%)`; }
+    let target=TDEE, lab='Calorie target';
+    if(state.goal==='cut'){ target=TDEE*(1-state.intensity); lab=`Target (deficit ${Math.round(state.intensity*100)}%)`; }
+    if(state.goal==='bulk'){ target=TDEE*(1+state.intensity); lab=`Target (surplus ${Math.round(state.intensity*100)}%)`; }
 
-    // Macro (g)
-    const P = state.prot * v.weight; // g
-    const F = state.fat * v.weight;  // g
+    const P = state.prot * v.weight;
+    const F = state.fat * v.weight;
     const kcalPF = P*4 + F*9;
-    let C = Math.max(0, (target - kcalPF) / 4); // g
-    // Se i carbo finiscono negativi, riduci grassi fino a minimo 0.5 g/kg
+    let C = Math.max(0, (target - kcalPF)/4);
+    let Fout = F;
     if(C<=0){
       const minFat = 0.5 * v.weight;
-      let Fadj = Math.max(minFat, F + (C*4)/9); // riduci F quel tanto che serve
-      const kcalPF2 = P*4 + Fadj*9;
-      C = Math.max(0, (target - kcalPF2) / 4);
-      // aggiorna F in stato di output
-      state._Fadj = Fadj;
-    } else {
-      state._Fadj = F;
+      Fout = Math.max(minFat, F + (C*4)/9);
+      const kcalPF2 = P*4 + Fout*9;
+      C = Math.max(0, (target - kcalPF2)/4);
     }
 
-    // Output
     els.bmrVal.textContent   = fmt(Math.round(BMR)) + ' kcal';
     els.tdeeVal.textContent  = fmt(Math.round(TDEE)) + ' kcal';
     els.targetVal.textContent= fmt(Math.round(target)) + ' kcal';
     els.targetLab.textContent= lab;
 
     els.pVal.textContent = fmt(Math.round(P)) + ' g';
-    els.fVal.textContent = fmt(Math.round(state._Fadj)) + ' g';
+    els.fVal.textContent = fmt(Math.round(Fout)) + ' g';
     els.cVal.textContent = fmt(Math.round(C)) + ' g';
 
-    // Vai alla vista risultati
     showResults(true);
-    // scroll top
     els.resBody.scrollTo({top:0, behavior:'instant'});
   }
 
@@ -482,7 +432,7 @@ button{appearance:none; -webkit-appearance:none}
       els.results.classList.remove('on');
       els.settings.style.display='block';
       document.querySelector('.startBar').style.display='flex';
-      fitSettings();
+      // nessun fit: scroll libero
     }
   }
 
@@ -490,9 +440,6 @@ button{appearance:none; -webkit-appearance:none}
   function init(){
     bindChips();
     buildIntensityChips();
-    fitSettings();
-    window.addEventListener('resize', fitSettings);
-    if(window.visualViewport) window.visualViewport.addEventListener('resize', fitSettings);
     $('calcBtn').addEventListener('click', calculate, {passive:true});
     $('backBtn').addEventListener('click', ()=>showResults(false), {passive:true});
     $('copyBtn').addEventListener('click', copyResults, {passive:true});
@@ -502,4 +449,3 @@ button{appearance:none; -webkit-appearance:none}
 </script>
 </body>
 </html>
-
