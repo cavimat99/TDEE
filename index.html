@@ -1,1 +1,505 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Calorie Coach — Calcolatore kcal & macro</title>
+<meta name="theme-color" content="#0a0f16" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+<style>
+:root{
+  --bg:#0a0f16; --panel:#0f1622; --text:#e8eef6;
+  --muted:#9db0c8; --accent:#3b82f6; --ok:#10b981; --warn:#f59e0b; --danger:#ef4444;
+  --line:#1b2433;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{height:100%; overflow:hidden}
+body{margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"SF Pro",Inter,Roboto,Arial,sans-serif}
+button{appearance:none; -webkit-appearance:none}
+
+/* Layout: settings 1fr + bottone auto + results full quando on */
+.app{height:100dvh; display:grid; grid-template-rows:1fr auto}
+
+/* SETTINGS */
+.settings{padding:8px 14px 10px; background:var(--panel); border-bottom:1px solid var(--line); overflow:hidden}
+.settingsInner{transform-origin:top center}
+
+/* Home link + Brand */
+.brand{padding-top:calc(env(safe-area-inset-top,0px)+8px); margin:0 0 12px}
+.homeLink{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:8px 10px; border-radius:10px; border:1px solid #2a374b;
+  color:#d8e6fb; text-decoration:none; font-weight:800; font-size:13px; background:#0e1420;
+  margin-bottom:10px;
+}
+.brandTitle{margin:0; font-weight:1000; font-size:clamp(26px,7.5vw,38px); line-height:1.06; letter-spacing:.02em; color:#eef5ff}
+.brandTitle .accent{
+  background:linear-gradient(90deg,#22d3ee 0%, #3b82f6 55%, #a855f7 100%);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent
+}
+.brandSub{margin-top:6px; font-size:12.5px; color:var(--muted)}
+
+.heading{font-size:18px; color:#cfe1ff; font-weight:800; margin-top:8px}
+.sub{font-size:13px; color:var(--muted)}
+.row{display:grid; gap:10px; margin-top:8px; align-items:start}
+.rowGrid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+@media (max-width:400px){ .rowGrid{grid-template-columns:1fr 1fr} }
+.label{font-size:13px; color:#c4d2e6}
+.chips{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.chip{
+  padding:10px 12px; border-radius:12px; border:1px solid #273449; background:#0e1420; color:#d8e6fb;
+  font-size:15px; font-weight:700; cursor:pointer; user-select:none
+}
+.chip.small{font-size:13px; padding:8px 10px}
+.chip.selected{background:var(--accent); border-color:transparent; color:#fff; box-shadow:0 6px 18px rgba(59,130,246,.25)}
+.settings.compact .chip{padding:8px 10px; font-size:14px}
+.settings.compact .chip.small{padding:7px 9px; font-size:12px}
+
+.inputGrid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.input{display:flex; flex-direction:column; gap:6px}
+.input input{
+  width:100%; padding:12px 12px; border-radius:12px;
+  border:1px solid #273449; background:#0e1420; color:#e8eef6; font-size:16px;
+}
+.input input::placeholder{color:#7387a4}
+.input small{color:#8699b5}
+
+.tip{font-size:12px; color:#93a6c2}
+
+/* START / CALCOLA */
+.startBar{padding:2px 12px calc(6px + env(safe-area-inset-bottom)); background:linear-gradient(180deg,rgba(10,16,24,0),rgba(10,16,24,.55)); display:flex; justify-content:center; align-items:center}
+.btn{width:100%; max-width:520px; height:54px; border:none; border-radius:16px; font-size:20px; font-weight:900; color:#fff; background:var(--accent); box-shadow:0 8px 18px rgba(59,130,246,.18); cursor:pointer}
+
+/* RESULTS */
+.results{display:none; position:relative; background:#000}
+.results.on{display:block}
+.wrap{position:absolute; inset:0; display:grid; grid-template-rows:auto 1fr auto}
+.resTop{padding:calc(10px + env(safe-area-inset-top)) 14px 8px; display:flex; justify-content:space-between; align-items:center}
+.resTitle{margin:0; font-weight:1000; letter-spacing:.02em; font-size:clamp(18px,5.2vw,24px)}
+.resBody{padding:8px 14px 14px; overflow:auto}
+.card{
+  background:#0f1622; border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:10px;
+}
+.card h3{margin:0 0 8px; font-size:16px; color:#cfe1ff}
+.kpi{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.kpiItem{background:#0e1420; border:1px solid #273449; border-radius:12px; padding:12px; text-align:center}
+.kpiItem .val{font-weight:900; font-size:clamp(22px,6vw,28px)}
+.kpiItem .lab{font-size:12px; color:#9db0c8}
+
+.macroGrid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px}
+.macro{background:#0e1420; border:1px solid #273449; border-radius:12px; padding:12px; text-align:center}
+.macro .val{font-weight:900; font-size:clamp(20px,5.5vw,26px)}
+.macro .lab{font-size:12px; color:#9db0c8}
+
+.resBottom{padding:8px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; gap:10px}
+.bbtn{flex:1; padding:14px 16px; border:none; border-radius:14px; font-size:16px; font-weight:800; color:#fff; cursor:pointer}
+.bbtn.ghost{background:#0e1420; border:1px solid #2a374b}
+.bbtn.primary{background:var(--accent)}
+.err{color:#ffb4b4; font-size:12px; margin-top:4px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SETTINGS -->
+  <section id="settings" class="settings">
+    <div id="settingsInner" class="settingsInner">
+      <div class="brand">
+        <a class="homeLink" href="https://cavimat99.github.io/Home-MC/" rel="noopener">← Torna a HOME</a>
+        <h1 class="brandTitle">Calorie <span class="accent">Coach</span></h1>
+        <div class="brandSub">calcola BMR, TDEE, calorie target e macro</div>
+      </div>
+
+      <div class="heading">Dati personali</div>
+      <div class="row">
+        <div class="chips">
+          <button class="chip selected" data-group="sex" data-value="m">Uomo</button>
+          <button class="chip" data-group="sex" data-value="f">Donna</button>
+        </div>
+      </div>
+
+      <div class="row inputGrid">
+        <div class="input">
+          <div class="label">Età</div>
+          <input id="age" type="number" inputmode="numeric" placeholder="anni" min="10" max="99">
+        </div>
+        <div class="input">
+          <div class="label">Altezza</div>
+          <input id="height" type="number" inputmode="numeric" placeholder="cm" min="120" max="230">
+        </div>
+        <div class="input">
+          <div class="label">Peso</div>
+          <input id="weight" type="number" inputmode="decimal" placeholder="kg" min="30" max="250" step="0.1">
+        </div>
+        <div class="input">
+          <div class="label">% Grasso (opz.)</div>
+          <input id="bf" type="number" inputmode="decimal" placeholder="%" min="3" max="60" step="0.1">
+          <small class="tip">Se lo inserisci uso Katch-McArdle, altrimenti Mifflin-St Jeor.</small>
+        </div>
+      </div>
+
+      <div class="heading">Attività & allenamenti</div>
+      <div class="row">
+        <div class="label">Attività quotidiana</div>
+        <div class="chips">
+          <button class="chip selected" data-group="activity" data-value="1.2">Sedentario</button>
+          <button class="chip" data-group="activity" data-value="1.375">Leggermente attivo</button>
+          <button class="chip" data-group="activity" data-value="1.55">Attivo</button>
+          <button class="chip" data-group="activity" data-value="1.725">Molto attivo</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Allenamenti / settimana</div>
+        <div class="chips">
+          <button class="chip selected" data-group="train" data-value="0">0</button>
+          <button class="chip" data-group="train" data-value="1">1–2</button>
+          <button class="chip" data-group="train" data-value="2">3–4</button>
+          <button class="chip" data-group="train" data-value="3">5–6</button>
+          <button class="chip" data-group="train" data-value="4">7+</button>
+        </div>
+        <div class="tip">Gli allenamenti aumentano il TDEE del ~5–20% in base alla frequenza.</div>
+      </div>
+
+      <div class="heading">Obiettivo</div>
+      <div class="row">
+        <div class="chips">
+          <button class="chip selected" data-group="goal" data-value="cut">Dimagrire</button>
+          <button class="chip" data-group="goal" data-value="maintain">Mantenere</button>
+          <button class="chip" data-group="goal" data-value="bulk">Ipertrofia</button>
+        </div>
+      </div>
+
+      <!-- Intensità variabile in base all'obiettivo -->
+      <div class="row" id="intensityRow">
+        <div class="label" id="intensityLabel">Deficit</div>
+        <div class="chips" id="intensityChips">
+          <!-- Per cut: 10/15/20% ; per bulk: 5/10/15% -->
+        </div>
+      </div>
+
+      <div class="heading">Macro</div>
+      <div class="rowGrid">
+        <div class="row">
+          <div class="label">Proteine (g/kg)</div>
+          <div class="chips">
+            <button class="chip" data-group="prot" data-value="1.6">1.6</button>
+            <button class="chip" data-group="prot" data-value="1.8">1.8</button>
+            <button class="chip selected" data-group="prot" data-value="2.0">2.0</button>
+            <button class="chip" data-group="prot" data-value="2.2">2.2</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="label">Grassi (g/kg)</div>
+          <div class="chips">
+            <button class="chip" data-group="fat" data-value="0.6">0.6</button>
+            <button class="chip selected" data-group="fat" data-value="0.8">0.8</button>
+            <button class="chip" data-group="fat" data-value="1.0">1.0</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="err" class="err" style="display:none;"></div>
+    </div>
+  </section>
+
+  <!-- CALCOLA -->
+  <div class="startBar"><button id="calcBtn" class="btn">CALCOLA</button></div>
+
+  <!-- RESULTS -->
+  <section id="results" class="results">
+    <div class="wrap">
+      <div class="resTop">
+        <h2 class="resTitle">Risultati</h2>
+        <a class="homeLink" href="https://cavimat99.github.io/Home-MC/" rel="noopener">← HOME</a>
+      </div>
+      <div class="resBody" id="resBody">
+        <div class="card">
+          <h3>Calorie</h3>
+          <div class="kpi">
+            <div class="kpiItem">
+              <div class="val" id="bmrVal">—</div>
+              <div class="lab">BMR</div>
+            </div>
+            <div class="kpiItem">
+              <div class="val" id="tdeeVal">—</div>
+              <div class="lab">TDEE (mantenimento)</div>
+            </div>
+          </div>
+          <div class="kpi" style="margin-top:10px;">
+            <div class="kpiItem" style="grid-column: span 2;">
+              <div class="val" id="targetVal">—</div>
+              <div class="lab" id="targetLab">Calorie target</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Macro giornalieri</h3>
+          <div class="macroGrid">
+            <div class="macro">
+              <div class="val" id="pVal">— g</div>
+              <div class="lab">Proteine</div>
+            </div>
+            <div class="macro">
+              <div class="val" id="fVal">— g</div>
+              <div class="lab">Grassi</div>
+            </div>
+            <div class="macro">
+              <div class="val" id="cVal">— g</div>
+              <div class="lab">Carboidrati</div>
+            </div>
+          </div>
+          <div class="tip" style="margin-top:8px">Le proteine e i grassi sono fissati in g/kg; i carbo sono il resto delle calorie.</div>
+        </div>
+
+        <div class="card">
+          <h3>Note</h3>
+          <div class="tip">
+            • Se hai inserito % grasso uso <b>Katch-McArdle</b>, altrimenti <b>Mifflin-St Jeor</b>.<br>
+            • L’impatto degli allenamenti aggiunge un +5–20% sul TDEE in base alla frequenza.<br>
+            • Indicazioni a scopo informativo, non sostituiscono parere medico o nutrizionista.
+          </div>
+        </div>
+      </div>
+      <div class="resBottom">
+        <button id="copyBtn" class="bbtn ghost">Copia risultati</button>
+        <button id="backBtn" class="bbtn primary">Modifica parametri</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(()=> {
+  const $ = id => document.getElementById(id);
+  const qsa = (s, r=document) => Array.from(r.querySelectorAll(s));
+
+  const els = {
+    settings: $('settings'), settingsInner: $('settingsInner'),
+    results: $('results'), resBody: $('resBody'),
+    calcBtn: $('calcBtn'), backBtn: $('backBtn'), copyBtn: $('copyBtn'),
+    err: $('err'),
+    // outputs
+    bmrVal: $('bmrVal'), tdeeVal: $('tdeeVal'), targetVal: $('targetVal'), targetLab: $('targetLab'),
+    pVal: $('pVal'), fVal: $('fVal'), cVal: $('cVal'),
+    // inputs
+    age: $('age'), height: $('height'), weight: $('weight'), bf: $('bf')
+  };
+
+  // Stato UI
+  let state = {
+    sex:'m', activity:1.2, train:0, goal:'cut',
+    intensity:0.15, // default per cut (15%)
+    prot:2.0, fat:0.8
+  };
+
+  // Chips binding
+  function bindChips(){
+    qsa('.chip').forEach(ch=>{
+      ch.addEventListener('click', ()=>{
+        const group = ch.dataset.group;
+        qsa(`.chip[data-group="${group}"]`).forEach(b=>b.classList.remove('selected'));
+        ch.classList.add('selected');
+        const val = ch.dataset.value;
+        if(group==='sex') state.sex = val;
+        if(group==='activity') state.activity = parseFloat(val);
+        if(group==='train') state.train = parseInt(val,10);
+        if(group==='goal'){ state.goal = val; buildIntensityChips(); }
+        if(group==='intensity') state.intensity = parseFloat(val);
+        if(group==='prot') state.prot = parseFloat(val);
+        if(group==='fat') state.fat = parseFloat(val);
+        fitSettings();
+      }, {passive:true});
+    });
+  }
+
+  // Intensità dinamica
+  function buildIntensityChips(){
+    const wrap = document.getElementById('intensityChips');
+    const label = document.getElementById('intensityLabel');
+    wrap.innerHTML='';
+    if(state.goal==='cut'){
+      label.textContent='Deficit';
+      const opts = [{p:0.10,l:'10%'},{p:0.15,l:'15%'},{p:0.20,l:'20%'}];
+      opts.forEach((o,i)=>{
+        const b = document.createElement('button');
+        b.className='chip'+(o.p===state.intensity?' selected':'');
+        b.dataset.group='intensity'; b.dataset.value=o.p; b.textContent=o.l;
+        wrap.appendChild(b);
+      });
+      // default se venivo da bulk
+      if(![0.10,0.15,0.20].includes(state.intensity)) state.intensity=0.15;
+    }else if(state.goal==='bulk'){
+      label.textContent='Surplus';
+      const opts = [{p:0.05,l:'+5%'},{p:0.10,l:'+10%'},{p:0.15,l:'+15%'}];
+      opts.forEach((o,i)=>{
+        const b = document.createElement('button');
+        b.className='chip'+(o.p===state.intensity?' selected':'');
+        b.dataset.group='intensity'; b.dataset.value=o.p; b.textContent=o.l;
+        wrap.appendChild(b);
+      });
+      if(![0.05,0.10,0.15].includes(state.intensity)) state.intensity=0.10;
+    }else{
+      label.textContent='Intensità';
+      const b = document.createElement('div');
+      b.className='tip'; b.textContent='A mantenimento non si applica surplus/deficit.';
+      wrap.appendChild(b);
+      state.intensity = 0;
+    }
+    bindChips(); // rebind ai nuovi chip
+  }
+
+  // Fit: adatta i settings senza scroll
+  function fitSettings(){
+    const wrap = els.settings, inner = els.settingsInner;
+    inner.style.transform='scale(1)'; wrap.classList.remove('compact');
+    const avail = wrap.clientHeight;
+    const needed = inner.scrollHeight;
+    let scale = Math.min(1, avail/needed);
+    scale = Math.max(0.6, scale);
+    inner.style.transform = `scale(${scale})`;
+    if(scale<0.82) wrap.classList.add('compact');
+    const used = needed*scale;
+    inner.style.marginTop = `${Math.max(0,(avail-used)*0.15)}px`;
+  }
+
+  // Helpers
+  const round = (x, d=0) => Number((Math.round(x * Math.pow(10,d)) / Math.pow(10,d)).toFixed(d));
+  const fmt = n => n.toLocaleString('it-IT');
+
+  // Training boost in base a frequenza (0..4)
+  function trainingBoost(idx){
+    // 0=0%, 1=+5%, 2=+10%, 3=+15%, 4=+20%
+    return [0, 0.05, 0.10, 0.15, 0.20][idx] || 0;
+  }
+
+  // Calcolo BMR
+  function calcBMR({sex, age, height, weight, bf}){
+    const hasBf = bf && !isNaN(bf);
+    if(hasBf){
+      const LBM = weight * (1 - (bf/100));
+      return 370 + 21.6 * LBM; // Katch-McArdle
+    }else{
+      // Mifflin-St Jeor
+      const s = (sex==='m') ? 5 : -161;
+      return 10*weight + 6.25*height - 5*age + s;
+    }
+  }
+
+  function validate(){
+    const age = parseInt(els.age.value,10);
+    const height = parseFloat(els.height.value);
+    const weight = parseFloat(els.weight.value);
+    const bf = els.bf.value ? parseFloat(els.bf.value) : null;
+
+    let msg = [];
+    if(isNaN(age) || age<10 || age>99) msg.push('Età non valida (10–99).');
+    if(isNaN(height) || height<120 || height>230) msg.push('Altezza non valida (120–230 cm).');
+    if(isNaN(weight) || weight<30 || weight>250) msg.push('Peso non valido (30–250 kg).');
+    if(bf!==null && (bf<3 || bf>60)) msg.push('% grasso fuori range (3–60%).');
+
+    if(msg.length){
+      els.err.style.display='block';
+      els.err.innerHTML = msg.join('<br>');
+      return null;
+    }
+    els.err.style.display='none';
+    return { age, height, weight, bf };
+  }
+
+  function calculate(){
+    const v = validate();
+    if(!v) return;
+
+    // BMR
+    const BMR = calcBMR({sex:state.sex, ...v});
+    // PAL di base (attività quotidiana)
+    const PAL = state.activity;
+    // Boost per allenamenti
+    const boost = trainingBoost(state.train);
+    // TDEE
+    const TDEE = BMR * PAL * (1 + boost);
+
+    // Target calories
+    let target = TDEE;
+    let lab = 'Calorie target';
+    if(state.goal==='cut'){ target = TDEE * (1 - state.intensity); lab = `Target (deficit ${Math.round(state.intensity*100)}%)`; }
+    if(state.goal==='bulk'){ target = TDEE * (1 + state.intensity); lab = `Target (surplus ${Math.round(state.intensity*100)}%)`; }
+
+    // Macro (g)
+    const P = state.prot * v.weight; // g
+    const F = state.fat * v.weight;  // g
+    const kcalPF = P*4 + F*9;
+    let C = Math.max(0, (target - kcalPF) / 4); // g
+    // Se i carbo finiscono negativi, riduci grassi fino a minimo 0.5 g/kg
+    if(C<=0){
+      const minFat = 0.5 * v.weight;
+      let Fadj = Math.max(minFat, F + (C*4)/9); // riduci F quel tanto che serve
+      const kcalPF2 = P*4 + Fadj*9;
+      C = Math.max(0, (target - kcalPF2) / 4);
+      // aggiorna F in stato di output
+      state._Fadj = Fadj;
+    } else {
+      state._Fadj = F;
+    }
+
+    // Output
+    els.bmrVal.textContent   = fmt(Math.round(BMR)) + ' kcal';
+    els.tdeeVal.textContent  = fmt(Math.round(TDEE)) + ' kcal';
+    els.targetVal.textContent= fmt(Math.round(target)) + ' kcal';
+    els.targetLab.textContent= lab;
+
+    els.pVal.textContent = fmt(Math.round(P)) + ' g';
+    els.fVal.textContent = fmt(Math.round(state._Fadj)) + ' g';
+    els.cVal.textContent = fmt(Math.round(C)) + ' g';
+
+    // Vai alla vista risultati
+    showResults(true);
+    // scroll top
+    els.resBody.scrollTo({top:0, behavior:'instant'});
+  }
+
+  function copyResults(){
+    const text = [
+      '— Calorie Coach —',
+      `BMR: ${els.bmrVal.textContent}`,
+      `TDEE: ${els.tdeeVal.textContent}`,
+      `${els.targetLab.textContent}: ${els.targetVal.textContent}`,
+      `Macro: P ${els.pVal.textContent}, F ${els.fVal.textContent}, C ${els.cVal.textContent}`
+    ].join('\n');
+    if(navigator.clipboard){ navigator.clipboard.writeText(text).catch(()=>{}); }
+  }
+
+  function showResults(on){
+    if(on){
+      els.settings.style.display='none';
+      document.querySelector('.startBar').style.display='none';
+      els.results.classList.add('on');
+    }else{
+      els.results.classList.remove('on');
+      els.settings.style.display='block';
+      document.querySelector('.startBar').style.display='flex';
+      fitSettings();
+    }
+  }
+
+  // Init
+  function init(){
+    bindChips();
+    buildIntensityChips();
+    fitSettings();
+    window.addEventListener('resize', fitSettings);
+    if(window.visualViewport) window.visualViewport.addEventListener('resize', fitSettings);
+    $('calcBtn').addEventListener('click', calculate, {passive:true});
+    $('backBtn').addEventListener('click', ()=>showResults(false), {passive:true});
+    $('copyBtn').addEventListener('click', copyResults, {passive:true});
+  }
+  window.addEventListener('load', init);
+})();
+</script>
+</body>
+</html>
 
