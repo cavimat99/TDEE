@@ -11,8 +11,7 @@
 <style>
 :root{
   --bg:#0a0f16; --panel:#0f1622; --text:#e8eef6;
-  --muted:#9db0c8; --accent:#3b82f6; --ok:#10b981; --warn:#f59e0b; --danger:#ef4444;
-  --line:#1b2433;
+  --muted:#9db0c8; --accent:#3b82f6; --ok:#10b981; --warn:#f59e0b; --danger:#ef4444; --line:#1b2433;
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
 html,body{height:100%; overflow:hidden}
@@ -22,17 +21,12 @@ button{appearance:none; -webkit-appearance:none}
 /* Layout: settings 1fr + bottone auto */
 .app{height:100dvh; display:grid; grid-template-rows:1fr auto}
 
-/* SETTINGS: ora SCORRE verticalmente */
+/* SETTINGS: scroll verticale */
 .settings{
-  padding:8px 14px 10px;
-  background:var(--panel);
-  border-bottom:1px solid var(--line);
-  overflow:auto;                         /* <— scroll */
-  -webkit-overflow-scrolling:touch;      /* <— scroll fluido su iOS */
+  padding:8px 14px 10px; background:var(--panel); border-bottom:1px solid var(--line);
+  overflow:auto; -webkit-overflow-scrolling:touch;
 }
-.settingsInner{ /* niente scale, solo contenitore */
-  max-width:720px; margin:0 auto;
-}
+.settingsInner{max-width:720px; margin:0 auto}
 
 .brand{padding-top:calc(env(safe-area-inset-top,0px)+8px); margin:0 0 12px}
 .homeLink{
@@ -77,7 +71,7 @@ button{appearance:none; -webkit-appearance:none}
 .startBar{padding:2px 12px calc(6px + env(safe-area-inset-bottom)); background:linear-gradient(180deg,rgba(10,16,24,0),rgba(10,16,24,.55)); display:flex; justify-content:center; align-items:center}
 .btn{width:100%; max-width:520px; height:54px; border:none; border-radius:16px; font-size:20px; font-weight:900; color:#fff; background:var(--accent); box-shadow:0 8px 18px rgba(59,130,246,.18); cursor:pointer}
 
-/* RESULTS (già scrollabili) */
+/* RESULTS */
 .results{display:none; position:relative; background:#000}
 .results.on{display:block}
 .wrap{position:absolute; inset:0; display:grid; grid-template-rows:auto 1fr auto}
@@ -114,7 +108,7 @@ button{appearance:none; -webkit-appearance:none}
       <div class="brand">
         <a class="homeLink" href="https://cavimat99.github.io/Home-MC/" rel="noopener">← Torna a HOME</a>
         <h1 class="brandTitle">Calorie <span class="accent">Coach</span></h1>
-        <div class="brandSub">calcola BMR, TDEE, calorie target e macro</div>
+        <div class="brandSub">calcola BMR, TDEE e macro consigliati</div>
       </div>
 
       <div class="heading">Dati personali</div>
@@ -176,30 +170,10 @@ button{appearance:none; -webkit-appearance:none}
         </div>
       </div>
 
+      <!-- Intensità dinamica -->
       <div class="row" id="intensityRow">
         <div class="label" id="intensityLabel">Deficit</div>
         <div class="chips" id="intensityChips"></div>
-      </div>
-
-      <div class="heading">Macro</div>
-      <div class="rowGrid">
-        <div class="row">
-          <div class="label">Proteine (g/kg)</div>
-          <div class="chips">
-            <button class="chip" data-group="prot" data-value="1.6">1.6</button>
-            <button class="chip" data-group="prot" data-value="1.8">1.8</button>
-            <button class="chip selected" data-group="prot" data-value="2.0">2.0</button>
-            <button class="chip" data-group="prot" data-value="2.2">2.2</button>
-          </div>
-        </div>
-        <div class="row">
-          <div class="label">Grassi (g/kg)</div>
-          <div class="chips">
-            <button class="chip" data-group="fat" data-value="0.6">0.6</button>
-            <button class="chip selected" data-group="fat" data-value="0.8">0.8</button>
-            <button class="chip" data-group="fat" data-value="1.0">1.0</button>
-          </div>
-        </div>
       </div>
 
       <div id="err" class="err" style="display:none;"></div>
@@ -238,7 +212,7 @@ button{appearance:none; -webkit-appearance:none}
         </div>
 
         <div class="card">
-          <h3>Macro giornalieri</h3>
+          <h3>Macro giornalieri (consigliati)</h3>
           <div class="macroGrid">
             <div class="macro">
               <div class="val" id="pVal">— g</div>
@@ -253,7 +227,7 @@ button{appearance:none; -webkit-appearance:none}
               <div class="lab">Carboidrati</div>
             </div>
           </div>
-          <div class="tip" style="margin-top:8px">Le proteine e i grassi sono fissati in g/kg; i carbo sono il resto delle calorie.</div>
+          <div class="tip" id="macroNote" style="margin-top:8px"></div>
         </div>
 
         <div class="card">
@@ -285,14 +259,13 @@ button{appearance:none; -webkit-appearance:none}
     calcBtn: $('calcBtn'), backBtn: $('backBtn'), copyBtn: $('copyBtn'),
     err: $('err'),
     bmrVal: $('bmrVal'), tdeeVal: $('tdeeVal'), targetVal: $('targetVal'), targetLab: $('targetLab'),
-    pVal: $('pVal'), fVal: $('fVal'), cVal: $('cVal'),
+    pVal: $('pVal'), fVal: $('fVal'), cVal: $('cVal'), macroNote: $('macroNote'),
     age: $('age'), height: $('height'), weight: $('weight'), bf: $('bf')
   };
 
   let state = {
     sex:'m', activity:1.2, train:0, goal:'cut',
-    intensity:0.15, // default cut 15%
-    prot:2.0, fat:0.8
+    intensity:0.15 // default cut 15%
   };
 
   function bindChips(){
@@ -307,8 +280,6 @@ button{appearance:none; -webkit-appearance:none}
         if(group==='train') state.train = parseInt(val,10);
         if(group==='goal'){ state.goal = val; buildIntensityChips(); }
         if(group==='intensity') state.intensity = parseFloat(val);
-        if(group==='prot') state.prot = parseFloat(val);
-        if(group==='fat') state.fat = parseFloat(val);
       }, {passive:true});
     });
   }
@@ -345,8 +316,8 @@ button{appearance:none; -webkit-appearance:none}
     bindChips();
   }
 
-  const round = (x, d=0) => Number((Math.round(x * Math.pow(10,d)) / Math.pow(10,d)).toFixed(d));
   const fmt = n => n.toLocaleString('it-IT');
+
   function trainingBoost(idx){ return [0,0.05,0.10,0.15,0.20][idx] || 0; }
 
   function calcBMR({sex, age, height, weight, bf}){
@@ -358,6 +329,13 @@ button{appearance:none; -webkit-appearance:none}
       const s = (sex==='m') ? 5 : -161; // Mifflin-St Jeor
       return 10*weight + 6.25*height - 5*age + s;
     }
+  }
+
+  // Macro consigliati (g/kg) in base all'obiettivo
+  function recommendPFPerKg(goal){
+    if(goal==='cut')      return {p:2.2, f:0.7};  // più proteine per preservare massa
+    if(goal==='bulk')     return {p:1.8, f:1.0};  // un po' più grassi
+    /* maintain */        return {p:1.8, f:0.9};
   }
 
   function validate(){
@@ -383,30 +361,39 @@ button{appearance:none; -webkit-appearance:none}
     const boost = trainingBoost(state.train);
     const TDEE = BMR * PAL * (1 + boost);
 
+    // Target kcal con deficit/surplus
     let target=TDEE, lab='Calorie target';
     if(state.goal==='cut'){ target=TDEE*(1-state.intensity); lab=`Target (deficit ${Math.round(state.intensity*100)}%)`; }
     if(state.goal==='bulk'){ target=TDEE*(1+state.intensity); lab=`Target (surplus ${Math.round(state.intensity*100)}%)`; }
 
-    const P = state.prot * v.weight;
-    const F = state.fat * v.weight;
-    const kcalPF = P*4 + F*9;
+    // Macro consigliati (g/kg)
+    const rec = recommendPFPerKg(state.goal);
+    const P = rec.p * v.weight;
+    let F = rec.f * v.weight;
+
+    // Calcola carbo = resto; se negativo, riduci grassi fino a 0.5 g/kg
+    const minFat = 0.5 * v.weight;
+    let kcalPF = P*4 + F*9;
     let C = Math.max(0, (target - kcalPF)/4);
-    let Fout = F;
-    if(C<=0){
-      const minFat = 0.5 * v.weight;
-      Fout = Math.max(minFat, F + (C*4)/9);
-      const kcalPF2 = P*4 + Fout*9;
-      C = Math.max(0, (target - kcalPF2)/4);
+    if(C<=0 && F>minFat){
+      F = Math.max(minFat, F + (C*4)/9); // riduci F per fare spazio
+      kcalPF = P*4 + F*9;
+      C = Math.max(0, (target - kcalPF)/4);
     }
 
+    // Output
     els.bmrVal.textContent   = fmt(Math.round(BMR)) + ' kcal';
     els.tdeeVal.textContent  = fmt(Math.round(TDEE)) + ' kcal';
     els.targetVal.textContent= fmt(Math.round(target)) + ' kcal';
     els.targetLab.textContent= lab;
 
     els.pVal.textContent = fmt(Math.round(P)) + ' g';
-    els.fVal.textContent = fmt(Math.round(Fout)) + ' g';
+    els.fVal.textContent = fmt(Math.round(F)) + ' g';
     els.cVal.textContent = fmt(Math.round(C)) + ' g';
+
+    els.macroNote.innerHTML =
+      `Linee guida usate: <b>P ${rec.p.toFixed(1)} g/kg</b>, <b>F ${rec.f.toFixed(1)} g/kg</b> &nbsp;•&nbsp; `
+      + `Carboidrati = calorie rimanenti. (Grassi minimi ${minFat.toFixed(0)} g)`;
 
     showResults(true);
     els.resBody.scrollTo({top:0, behavior:'instant'});
@@ -418,7 +405,7 @@ button{appearance:none; -webkit-appearance:none}
       `BMR: ${els.bmrVal.textContent}`,
       `TDEE: ${els.tdeeVal.textContent}`,
       `${els.targetLab.textContent}: ${els.targetVal.textContent}`,
-      `Macro: P ${els.pVal.textContent}, F ${els.fVal.textContent}, C ${els.cVal.textContent}`
+      `Macro consigliati: P ${els.pVal.textContent}, F ${els.fVal.textContent}, C ${els.cVal.textContent}`
     ].join('\n');
     if(navigator.clipboard){ navigator.clipboard.writeText(text).catch(()=>{}); }
   }
@@ -432,7 +419,6 @@ button{appearance:none; -webkit-appearance:none}
       els.results.classList.remove('on');
       els.settings.style.display='block';
       document.querySelector('.startBar').style.display='flex';
-      // nessun fit: scroll libero
     }
   }
 
