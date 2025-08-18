@@ -53,7 +53,6 @@ button{appearance:none; -webkit-appearance:none}
   padding:10px 12px; border-radius:12px; border:1px solid #273449; background:#0e1420; color:#d8e6fb;
   font-size:15px; font-weight:700; cursor:pointer; user-select:none
 }
-.chip.small{font-size:13px; padding:8px 10px}
 .chip.selected{background:var(--accent); border-color:transparent; color:#fff; box-shadow:0 6px 18px rgba(59,130,246,.25)}
 
 .inputGrid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
@@ -92,6 +91,9 @@ button{appearance:none; -webkit-appearance:none}
 .macro .val{font-weight:900; font-size:clamp(20px,5.5vw,26px)}
 .macro .lab{font-size:12px; color:#9db0c8}
 
+.kv{display:grid; grid-template-columns:auto 1fr; gap:6px 10px; align-items:center}
+.kv .k{font-size:13px; color:#9db0c8}
+
 .resBottom{padding:8px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; gap:10px}
 .bbtn{flex:1; padding:14px 16px; border:none; border-radius:14px; font-size:16px; font-weight:800; color:#fff; cursor:pointer}
 .bbtn.ghost{background:#0e1420; border:1px solid #2a374b}
@@ -108,7 +110,7 @@ button{appearance:none; -webkit-appearance:none}
       <div class="brand">
         <a class="homeLink" href="https://cavimat99.github.io/Home-MC/" rel="noopener">← Torna a HOME</a>
         <h1 class="brandTitle">Calorie <span class="accent">Coach</span></h1>
-        <div class="brandSub">calcola BMR, TDEE e macro consigliati</div>
+        <div class="brandSub">calcola BMR, TDEE, macro e condizioni corporee</div>
       </div>
 
       <div class="heading">Dati personali</div>
@@ -136,6 +138,11 @@ button{appearance:none; -webkit-appearance:none}
           <div class="label">% Grasso (opz.)</div>
           <input id="bf" type="number" inputmode="decimal" placeholder="%" min="3" max="60" step="0.1">
           <small class="tip">Se lo inserisci uso Katch-McArdle, altrimenti Mifflin-St Jeor.</small>
+        </div>
+        <div class="input">
+          <div class="label">Vita (opz.)</div>
+          <input id="waist" type="number" inputmode="numeric" placeholder="cm" min="40" max="150">
+          <small class="tip">Per WHtR (rapporto vita/altezza).</small>
         </div>
       </div>
 
@@ -231,10 +238,25 @@ button{appearance:none; -webkit-appearance:none}
         </div>
 
         <div class="card">
+          <h3>Condizioni corporee</h3>
+          <div class="kv">
+            <div class="k">BMI (IMC)</div>
+            <div><span id="bmiVal">—</span> · <span id="bmiCat">—</span></div>
+
+            <div class="k">% Grasso</div>
+            <div id="bfLine">—</div>
+
+            <div class="k">WHtR (vita/altezza)</div>
+            <div id="whtrLine">—</div>
+          </div>
+          <div class="tip" id="judge" style="margin-top:8px"></div>
+        </div>
+
+        <div class="card">
           <h3>Note</h3>
           <div class="tip">
             • Se hai inserito % grasso uso <b>Katch-McArdle</b>, altrimenti <b>Mifflin-St Jeor</b>.<br>
-            • L’impatto degli allenamenti aggiunge un +5–20% sul TDEE in base alla frequenza.<br>
+            • Il giudizio combina BMI, % grasso (se presente) e WHtR. Il BMI può sovrastimare nei soggetti molto muscolosi.<br>
             • Indicazioni a scopo informativo, non sostituiscono parere medico o nutrizionista.
           </div>
         </div>
@@ -254,13 +276,13 @@ button{appearance:none; -webkit-appearance:none}
   const qsa = (s, r=document) => Array.from(r.querySelectorAll(s));
 
   const els = {
-    settings: $('settings'), settingsInner: $('settingsInner'),
-    results: $('results'), resBody: $('resBody'),
+    settings: $('settings'), results: $('results'), resBody: $('resBody'),
     calcBtn: $('calcBtn'), backBtn: $('backBtn'), copyBtn: $('copyBtn'),
     err: $('err'),
     bmrVal: $('bmrVal'), tdeeVal: $('tdeeVal'), targetVal: $('targetVal'), targetLab: $('targetLab'),
     pVal: $('pVal'), fVal: $('fVal'), cVal: $('cVal'), macroNote: $('macroNote'),
-    age: $('age'), height: $('height'), weight: $('weight'), bf: $('bf')
+    bmiVal: $('bmiVal'), bmiCat: $('bmiCat'), bfLine: $('bfLine'), whtrLine: $('whtrLine'), judge: $('judge'),
+    age: $('age'), height: $('height'), weight: $('weight'), bf: $('bf'), waist: $('waist')
   };
 
   let state = {
@@ -338,50 +360,134 @@ button{appearance:none; -webkit-appearance:none}
     /* maintain */        return {p:1.8, f:0.9};
   }
 
+  // BMI
+  function bmiCategory(bmi){
+    if(bmi < 18.5) return 'Sottopeso';
+    if(bmi < 25)   return 'Normopeso';
+    if(bmi < 30)   return 'Sovrappeso';
+    if(bmi < 35)   return 'Obesità I';
+    if(bmi < 40)   return 'Obesità II';
+    return 'Obesità III';
+  }
+
+  // % Grasso categorie (maschio/femmina)
+  function bfCategory(bf, sex){
+    if(sex==='m'){
+      if(bf < 6)   return 'Molto basso / essenziale';
+      if(bf <=13)  return 'Atleta';
+      if(bf <=17)  return 'Fitness';
+      if(bf <=24)  return 'Medio';
+      return 'Obeso';
+    }else{
+      if(bf < 14)  return 'Molto basso / essenziale';
+      if(bf <=20)  return 'Atleta';
+      if(bf <=24)  return 'Fitness';
+      if(bf <=31)  return 'Medio';
+      return 'Obesa';
+    }
+  }
+
+  // WHtR (vita/altezza) categorie adulti
+  function whtrCategory(r){
+    if(r<=0) return null;
+    if(r < 0.40) return 'Molto magro';
+    if(r < 0.50) return 'Ottimale';
+    if(r < 0.60) return 'Rischio aumentato';
+    return 'Rischio elevato';
+  }
+
   function validate(){
     const age = parseInt(els.age.value,10);
     const height = parseFloat(els.height.value);
     const weight = parseFloat(els.weight.value);
     const bf = els.bf.value ? parseFloat(els.bf.value) : null;
+    const waist = els.waist.value ? parseFloat(els.waist.value) : null;
+
     let msg=[];
     if(isNaN(age) || age<10 || age>99) msg.push('Età non valida (10–99).');
     if(isNaN(height) || height<120 || height>230) msg.push('Altezza non valida (120–230 cm).');
     if(isNaN(weight) || weight<30 || weight>250) msg.push('Peso non valido (30–250 kg).');
     if(bf!==null && (bf<3 || bf>60)) msg.push('% grasso fuori range (3–60%).');
+    if(waist!==null && (waist<40 || waist>150)) msg.push('Vita fuori range (40–150 cm).');
+
     if(msg.length){ els.err.style.display='block'; els.err.innerHTML=msg.join('<br>'); return null; }
     els.err.style.display='none';
-    return {age,height,weight,bf};
+    return { age, height, weight, bf, waist };
   }
 
   function calculate(){
     const v = validate(); if(!v) return;
 
+    // BMR / TDEE / Target
     const BMR = calcBMR({sex:state.sex, ...v});
     const PAL = state.activity;
     const boost = trainingBoost(state.train);
     const TDEE = BMR * PAL * (1 + boost);
 
-    // Target kcal con deficit/surplus
     let target=TDEE, lab='Calorie target';
     if(state.goal==='cut'){ target=TDEE*(1-state.intensity); lab=`Target (deficit ${Math.round(state.intensity*100)}%)`; }
     if(state.goal==='bulk'){ target=TDEE*(1+state.intensity); lab=`Target (surplus ${Math.round(state.intensity*100)}%)`; }
 
-    // Macro consigliati (g/kg)
+    // Macro consigliati
     const rec = recommendPFPerKg(state.goal);
     const P = rec.p * v.weight;
     let F = rec.f * v.weight;
-
-    // Calcola carbo = resto; se negativo, riduci grassi fino a 0.5 g/kg
     const minFat = 0.5 * v.weight;
     let kcalPF = P*4 + F*9;
     let C = Math.max(0, (target - kcalPF)/4);
     if(C<=0 && F>minFat){
-      F = Math.max(minFat, F + (C*4)/9); // riduci F per fare spazio
+      F = Math.max(minFat, F + (C*4)/9);
       kcalPF = P*4 + F*9;
       C = Math.max(0, (target - kcalPF)/4);
     }
 
-    // Output
+    // Condizioni corporee
+    const bmi = v.weight / Math.pow(v.height/100, 2);
+    const bmiCat = bmiCategory(bmi);
+    els.bmiVal.textContent = bmi.toFixed(1);
+    els.bmiCat.textContent = bmiCat;
+
+    if(v.bf!==null){
+      const bfc = bfCategory(v.bf, state.sex);
+      els.bfLine.textContent = `${v.bf.toFixed(1)}% · ${bfc}`;
+    } else {
+      els.bfLine.textContent = 'Non fornita';
+    }
+
+    if(v.waist!==null){
+      const whtr = v.waist / v.height;
+      const wcat = whtrCategory(whtr);
+      els.whtrLine.textContent = `${whtr.toFixed(2)} · ${wcat}`;
+    } else {
+      els.whtrLine.textContent = 'Non fornita';
+    }
+
+    // Giudizio sintetico
+    let notes = [];
+    if(v.bf!==null){
+      const bfc = bfCategory(v.bf, state.sex);
+      if(/Obes/.test(bfc)) notes.push('Eccesso di grasso corporeo probabile.');
+      else if(bmiCat==='Sovrappeso' && (bfc==='Atleta' || bfc==='Fitness')){
+        notes.push('BMI probabilmente sovrastima (massa muscolare elevata).');
+      }
+    } else {
+      if(state.train>=2 && (bmi>=25 && bmi<30)){
+        notes.push('Ti alleni spesso: il BMI potrebbe sovrastimare se hai molta massa muscolare.');
+      }
+    }
+    if(v.waist!==null){
+      const whtr = v.waist / v.height;
+      const wcat = whtrCategory(whtr);
+      if(wcat==='Rischio aumentato' || wcat==='Rischio elevato'){
+        notes.push('Distribuzione addominale: attenzione al grasso viscerale.');
+      }
+    }
+    if(notes.length===0){
+      notes.push(bmiCat==='Normopeso' ? 'Quadro generale nella norma.' : `Categoria IMC: ${bmiCat}.`);
+    }
+    els.judge.innerHTML = notes.join(' ');
+
+    // Output numeri
     els.bmrVal.textContent   = fmt(Math.round(BMR)) + ' kcal';
     els.tdeeVal.textContent  = fmt(Math.round(TDEE)) + ' kcal';
     els.targetVal.textContent= fmt(Math.round(target)) + ' kcal';
@@ -392,9 +498,10 @@ button{appearance:none; -webkit-appearance:none}
     els.cVal.textContent = fmt(Math.round(C)) + ' g';
 
     els.macroNote.innerHTML =
-      `Linee guida usate: <b>P ${rec.p.toFixed(1)} g/kg</b>, <b>F ${rec.f.toFixed(1)} g/kg</b> &nbsp;•&nbsp; `
-      + `Carboidrati = calorie rimanenti. (Grassi minimi ${minFat.toFixed(0)} g)`;
+      `Linee guida usate: <b>P ${rec.p.toFixed(1)} g/kg</b>, <b>F ${rec.f.toFixed(1)} g/kg</b> • `
+      + `Carboidrati = calorie rimanenti. (Grassi minimi ${Math.round(minFat)} g)`;
 
+    // Vai alla vista risultati
     showResults(true);
     els.resBody.scrollTo({top:0, behavior:'instant'});
   }
@@ -405,7 +512,11 @@ button{appearance:none; -webkit-appearance:none}
       `BMR: ${els.bmrVal.textContent}`,
       `TDEE: ${els.tdeeVal.textContent}`,
       `${els.targetLab.textContent}: ${els.targetVal.textContent}`,
-      `Macro consigliati: P ${els.pVal.textContent}, F ${els.fVal.textContent}, C ${els.cVal.textContent}`
+      `Macro consigliati: P ${els.pVal.textContent}, F ${els.fVal.textContent}, C ${els.cVal.textContent}`,
+      `BMI: ${els.bmiVal.textContent} (${els.bmiCat.textContent})`,
+      `Grasso: ${els.bfLine.textContent}`,
+      `WHtR: ${els.whtrLine.textContent}`,
+      `Giudizio: ${els.judge.textContent}`
     ].join('\n');
     if(navigator.clipboard){ navigator.clipboard.writeText(text).catch(()=>{}); }
   }
